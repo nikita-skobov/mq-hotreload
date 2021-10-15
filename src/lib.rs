@@ -6,10 +6,36 @@ use libloading::{Symbol, Library};
 mod dumbfilewatch;
 
 
+/// provides the external functions that will be called by the host.
+/// you can provide these functions yourself, but the macro just makes it easier because
+/// the downcast mut is a bit messy. Also, if the downcast mut fails, we panic.
+/// if you want to provide your own implementation, you can change how that should
+/// be handled.
 #[macro_export]
-macro_rules! build_host {
-    ($libname:literal) => {
-        println!($libname);
+macro_rules! mqhr_funcs {
+    ($stateobj:ident) => {
+        #[no_mangle]
+        pub unsafe extern "C" fn mqhr_update(ctxh: ::macroquad::ctx_helper::ContextHelper, mut data: Box<dyn Any>) -> Box<dyn Any> {
+            let ctxh = ctxh;
+            let boxdata = &mut *data;
+            match boxdata.downcast_mut::<$stateobj>() {
+                Some(s) => {
+                    update_inner(s, ctxh);
+                }
+                None => {
+                    panic!("FAILED DOWNCAST");
+                }
+            }
+        
+            data
+        }
+
+        #[no_mangle]
+        pub unsafe extern "C" fn mqhr_init() -> Box<dyn Any> {
+            let mynum = $stateobj::default();
+            let mybox: Box<dyn Any> = Box::new(mynum);
+            mybox
+        }        
     };
 }
 
