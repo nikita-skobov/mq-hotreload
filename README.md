@@ -22,7 +22,7 @@ First, edit the Cargo.toml file to add dependencies, and lib/bin info:
 
 ```toml
 [dependencies]
-mq-hotreload = { path = "../mq-hotreload/" }
+mq-hotreload = { git = "https://github.com/nikita-skobov/mq-hotreload" }
 # this is a fork i made of macroquad that has
 # public access to a context object
 # that we need for this to work properly
@@ -33,7 +33,7 @@ macroquad = { git = "https://github.com/nikita-skobov/macroquad", default-featur
 # you name your library:
 name = "whatever"
 crate-type = ["cdylib"]
-path = "src/whatever.rs
+path = "src/whatever.rs"
 
 [[bin]]
 name = "main"
