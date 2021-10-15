@@ -173,8 +173,8 @@ async fn real_main(opts: HostOptions) {
     unsafe {
         let mut data: Box<dyn Any> = Box::new(());
         let mut lib = Library::new(&opts.shared_object).unwrap();
-        let mut update_fn: Symbol<unsafe extern "C" fn(ctxh: ContextHelper, data: Box<dyn Any>) -> Box<dyn Any>> = lib.get(b"update").unwrap();
-        let mut init_fn: Symbol<unsafe extern "C" fn(data: Box<dyn Any>) -> Box<dyn Any>> = lib.get(b"init").unwrap();
+        let mut update_fn: Symbol<unsafe extern "C" fn(ctxh: ContextHelper, data: Box<dyn Any>) -> Box<dyn Any>> = lib.get(b"mqhr_update").unwrap();
+        let mut init_fn: Symbol<unsafe extern "C" fn(data: Box<dyn Any>) -> Box<dyn Any>> = lib.get(b"mqhr_init").unwrap();
         data = init_fn(data);
 
         loop {
@@ -189,8 +189,8 @@ async fn real_main(opts: HostOptions) {
                     break;
                 }
                 lib = Library::new(&opts.shared_object).unwrap();
-                update_fn = lib.get(b"update").unwrap();
-                init_fn = lib.get(b"init").unwrap();
+                update_fn = lib.get(b"mqhr_update").unwrap();
+                init_fn = lib.get(b"mqhr_init").unwrap();
                 data = init_fn(data);
                 println!("Successfully reloaded");
             }
