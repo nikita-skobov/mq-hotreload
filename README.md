@@ -10,6 +10,10 @@ https://fasterthanli.me/articles/so-you-want-to-live-reload-rust
 
 A library of functions and macros to easily setup a window/graphics system and with hot reloading. **The contents in the window will update every time you save your code**.
 
+![hotreload2](https://user-images.githubusercontent.com/39128800/137549041-0b3508ef-d07c-4bd6-a585-327d241173c9.gif)
+
+
+
 ## How to use it?:
 
 To get started you need to make a library crate and two files.
