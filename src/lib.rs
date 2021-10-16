@@ -296,7 +296,7 @@ async fn real_main(opts: HostOptions) {
     //     println!("{:?}", w.path);
     // }
     let mut watchman = DFOwner::start(opts.shared_poll_time, watchers);
-
+    let mut broken_lib = false;
 
     unsafe {
         let mut data: Box<dyn Any> = Box::new(());
@@ -309,8 +309,13 @@ async fn real_main(opts: HostOptions) {
             if watchman.should_update() {
                 println!("Change detected. Building new shared object");
                 if !lib_built_successfully(&opts.cargo_project_path) {
-                    break;
+                    broken_lib = true;
+                    println!("FAILED TO BUILD LIBRARY");
+                    println!("Will wait for successful build...");
+                    macroquad::window::next_frame().await;
+                    continue;
                 }
+                broken_lib = false;
                 println!("Reloading...");
                 if lib.close().is_err() {
                     println!("Error closing shared object.");
@@ -321,6 +326,10 @@ async fn real_main(opts: HostOptions) {
                 init_fn = lib.get(b"mqhr_init").unwrap();
                 data = init_fn(data);
                 println!("Successfully reloaded");
+            }
+            if broken_lib {
+                macroquad::window::next_frame().await;
+                continue;
             }
 
             let context = macroquad::get_context();
