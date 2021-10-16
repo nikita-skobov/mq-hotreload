@@ -46,6 +46,15 @@ path = "src/main.rs"
 [[bin]]
 name = "whatever"
 path = "src/main.rs"
+required-features = ["isbin"]
+
+[features]
+default = []
+isbin = []
+
+# The isbin feature is important that it is present in the bin, but NOT in the lib.
+# This feature is used for conditional compilation to ensure that only the executable gets a main function,
+# and that only the library gets the extern functions.
 ```
 
 Next, we create the `src/main.rs` file:
@@ -59,6 +68,18 @@ use macroquad::ctx_helper::ContextHelper;
 const BTN_LEFT: macroquad::input::MouseButton = macroquad::input::MouseButton::Left;
 
 mq_hotreload::mqhr_funcs!(MyState);
+
+// the above macro adds some necessary functions.
+// if this is being built as a binary, it adds a main function that contains the following:
+// ```
+// let host = host_options!();
+// host.run();
+// ```
+// you can provide your own main body by doing the following:
+// mq_hotreload::mqhr_funcs!(MyState, {
+//   // whatever you want here...
+//   // for example, you can build your own host options
+// });
 
 #[derive(Debug, Default)]
 pub struct MyState {
@@ -76,16 +97,6 @@ pub fn update_inner(state: &mut MyState, mut ctxh: ContextHelper) {
     for circle in &state.circles {
         ctxh.draw_circle(circle[0], circle[1], 30.0, BLUE);
     }
-}
-
-pub fn main() {
-    // this macro will fill in the important details
-    // such as path to the shared object.
-    // defaults will work fine, but if you want, you can
-    // customize some options before calling .run()
-    // such as setting your own macroquad config
-    let host = host_options!();
-    host.run();
 }
 
 ```

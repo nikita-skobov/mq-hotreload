@@ -14,6 +14,7 @@ mod dumbfilewatch;
 #[macro_export]
 macro_rules! mqhr_funcs {
     ($stateobj:ident) => {
+        #[cfg(not(feature = "isbin"))]
         #[no_mangle]
         pub unsafe extern "C" fn mqhr_update(ctxh: ::macroquad::ctx_helper::ContextHelper, mut data: Box<dyn Any>) -> Box<dyn Any> {
             let ctxh = ctxh;
@@ -26,18 +27,57 @@ macro_rules! mqhr_funcs {
                     panic!("FAILED DOWNCAST");
                 }
             }
-        
+
             data
         }
 
+        #[cfg(not(feature = "isbin"))]
         #[no_mangle]
         pub unsafe extern "C" fn mqhr_init() -> Box<dyn Any> {
             let mynum = $stateobj::default();
             let mybox: Box<dyn Any> = Box::new(mynum);
             mybox
-        }        
+        }
+
+        #[cfg(feature = "isbin")]
+        pub fn main() {
+            let host = mq_hotreload::host_options!();
+            host.run();
+        }
     };
+    ($stateobj:ident, $mainbody:expr) => {
+        #[cfg(not(feature = "isbin"))]
+        #[no_mangle]
+        pub unsafe extern "C" fn mqhr_update(ctxh: ::macroquad::ctx_helper::ContextHelper, mut data: Box<dyn Any>) -> Box<dyn Any> {
+            let ctxh = ctxh;
+            let boxdata = &mut *data;
+            match boxdata.downcast_mut::<$stateobj>() {
+                Some(s) => {
+                    update_inner(s, ctxh);
+                }
+                None => {
+                    panic!("FAILED DOWNCAST");
+                }
+            }
+
+            data
+        }
+
+        #[cfg(not(feature = "isbin"))]
+        #[no_mangle]
+        pub unsafe extern "C" fn mqhr_init() -> Box<dyn Any> {
+            let mynum = $stateobj::default();
+            let mybox: Box<dyn Any> = Box::new(mynum);
+            mybox
+        }
+
+        #[cfg(feature = "isbin")]
+        pub fn main() {
+            $mainbody
+        }
+    }
 }
+
 
 #[macro_export]
 macro_rules! host_options {
