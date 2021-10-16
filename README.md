@@ -51,6 +51,7 @@ required-features = ["isbin"]
 [features]
 default = []
 isbin = []
+prod = []
 
 # The isbin feature is important that it is present in the bin, but NOT in the lib.
 # This feature is used for conditional compilation to ensure that only the executable gets a main function,
@@ -75,10 +76,12 @@ mq_hotreload::mqhr_funcs!(MyState);
 // let host = host_options!();
 // host.run();
 // ```
-// you can provide your own main body by doing the following:
+// you can provide your own host options by doing the following:
 // mq_hotreload::mqhr_funcs!(MyState, {
-//   // whatever you want here...
-//   // for example, you can build your own host options
+//    let mut host = host_options!();
+//    // edit the host object
+//    // the expression HAS to end with the host object:
+//    host
 // });
 
 #[derive(Debug, Default)]
@@ -105,7 +108,20 @@ Now build the main executable, and run it.
 The main executable will build your shared object for you if it is not already built.
 
 ```sh
-cargo run --bin whatever
+# it will not build without the isbin feature:
+cargo build --bin whatever --features isbin
+./target/debug/whatever
+```
+
+Adding this feature flag is annoying, but because we have hot reloading
+enabled, we technically only need to build the host
+program once, and afterwards we just run the `./target/debug/whatever` program
+and edit our main file and have it rebuild each time.
+
+Alternatively, you can build the library manually with:
+
+```sh
+cargo build --lib
 ```
 
 Click around on the screen, and it should draw green circles.
@@ -118,3 +134,9 @@ ctxh.draw_rectangle(100.0, 100.0, 30.0, 80.0, RED);
 
 Then, once you save it, you should see the window update in a few seconds.
 You will also notice your circles are gone. This is because the state cannot persist between reloads (as far as I know. If you figure out how to do that without having the state be known to both host and shared, please let me know).
+
+Finally, we included a `prod` feature to allow us to build for "production" which just means we build a single executable instead of using hot reloading. This is when you are done developing, and want to output a finished project without any dynamic loading/file watching. You do this as follows:
+
+```sh
+cargo build --bin whatever --features "isbin prod"
+```

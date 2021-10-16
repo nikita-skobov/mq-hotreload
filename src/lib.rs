@@ -39,10 +39,28 @@ macro_rules! mqhr_funcs {
             mybox
         }
 
-        #[cfg(feature = "isbin")]
+        #[cfg(all(feature = "isbin", not(feature = "prod")))]
         pub fn main() {
             let host = mq_hotreload::host_options!();
             host.run();
+        }
+
+        #[cfg(all(feature = "isbin", feature = "prod"))]
+        pub fn main() {
+            let mut opts = mq_hotreload::host_options!();
+            let macroquad_conf = opts.macroquad_conf.take().unwrap_or(::macroquad::window::Conf::default());
+            ::macroquad::Window::from_config(macroquad_conf, prod_main());
+        }
+
+        #[cfg(feature = "prod")]
+        async fn prod_main() {
+            let mut state = $stateobj::default();
+            loop {
+                let context = ::macroquad::get_context();
+                let ctxh = ::macroquad::ctx_helper::ContextHelper { context };
+                update_inner(&mut state, ctxh);
+                ::macroquad::window::next_frame().await;
+            }
         }
     };
     ($stateobj:ident, $mainbody:expr) => {
@@ -71,9 +89,28 @@ macro_rules! mqhr_funcs {
             mybox
         }
 
-        #[cfg(feature = "isbin")]
+        #[cfg(all(feature = "isbin", not(feature = "prod")))]
         pub fn main() {
-            $mainbody
+            let opts = $mainbody;
+            opts.run();
+        }
+
+        #[cfg(all(feature = "isbin", feature = "prod"))]
+        pub fn main() {
+            let mut opts = $mainbody;
+            let macroquad_conf = opts.macroquad_conf.take().unwrap_or(::macroquad::window::Conf::default());
+            ::macroquad::Window::from_config(macroquad_conf, prod_main());
+        }
+
+        #[cfg(feature = "prod")]
+        async fn prod_main() {
+            let mut state = $stateobj::default();
+            loop {
+                let context = ::macroquad::get_context();
+                let ctxh = ::macroquad::ctx_helper::ContextHelper { context };
+                update_inner(&mut state, ctxh);
+                ::macroquad::window::next_frame().await;
+            }
         }
     }
 }
