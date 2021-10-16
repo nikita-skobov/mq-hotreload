@@ -39,6 +39,17 @@ macro_rules! mqhr_funcs {
     };
 }
 
+#[macro_export]
+macro_rules! host_options {
+    () => {
+        // TODO: lib_.so is only on linux, figure out the windows/mac ones
+        mq_hotreload::HostOptions::from_macro(
+            format!("{}/target/debug/lib{}.so", env!("CARGO_MANIFEST_DIR"), env!("CARGO_CRATE_NAME")),
+            env!("CARGO_MANIFEST_DIR")
+        )
+    }
+}
+
 #[derive(Debug)]
 pub struct HostOptions {
     /// name/path to the shared object that will be reloaded
@@ -76,6 +87,20 @@ impl Default for HostOptions {
 }
 
 impl HostOptions {
+    /// designed to be called from a macro that will fill all of the necessary
+    /// values in such as directory of cargo project, library name, etc...
+    pub fn from_macro(
+        shared_object: String,
+        cargo_project_path: &str,
+    ) -> HostOptions {
+        let watch_file = format!("{}/src/", cargo_project_path);
+        let mut opts = HostOptions::default();
+        opts.shared_object = shared_object.into();
+        opts.cargo_project_path = cargo_project_path.into();
+        opts.watch_files = vec![watch_file];
+        opts
+    }
+
     pub fn new<S: AsRef<str>>(shared_object: S) -> HostOptions {
         let mut opts = HostOptions::default();
         opts.shared_object = shared_object.as_ref().into();
