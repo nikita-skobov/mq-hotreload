@@ -14,6 +14,7 @@ mod dumbfilewatch;
 #[macro_export]
 macro_rules! mqhr_funcs {
     ($stateobj:ident) => {
+        #[cfg(not(feature = "isbin"))]
         #[no_mangle]
         pub unsafe extern "C" fn mqhr_update(ctxh: ::macroquad::ctx_helper::ContextHelper, mut data: Box<dyn Any>) -> Box<dyn Any> {
             let ctxh = ctxh;
@@ -26,17 +27,104 @@ macro_rules! mqhr_funcs {
                     panic!("FAILED DOWNCAST");
                 }
             }
-        
+
             data
         }
 
+        #[cfg(not(feature = "isbin"))]
         #[no_mangle]
         pub unsafe extern "C" fn mqhr_init() -> Box<dyn Any> {
             let mynum = $stateobj::default();
             let mybox: Box<dyn Any> = Box::new(mynum);
             mybox
-        }        
+        }
+
+        #[cfg(all(feature = "isbin", not(feature = "prod")))]
+        pub fn main() {
+            let host = mq_hotreload::host_options!();
+            host.run();
+        }
+
+        #[cfg(all(feature = "isbin", feature = "prod"))]
+        pub fn main() {
+            let mut opts = mq_hotreload::host_options!();
+            let macroquad_conf = opts.macroquad_conf.take().unwrap_or(::macroquad::window::Conf::default());
+            ::macroquad::Window::from_config(macroquad_conf, prod_main());
+        }
+
+        #[cfg(feature = "prod")]
+        async fn prod_main() {
+            let mut state = $stateobj::default();
+            loop {
+                let context = ::macroquad::get_context();
+                let ctxh = ::macroquad::ctx_helper::ContextHelper { context };
+                update_inner(&mut state, ctxh);
+                ::macroquad::window::next_frame().await;
+            }
+        }
     };
+    ($stateobj:ident, $mainbody:expr) => {
+        #[cfg(not(feature = "isbin"))]
+        #[no_mangle]
+        pub unsafe extern "C" fn mqhr_update(ctxh: ::macroquad::ctx_helper::ContextHelper, mut data: Box<dyn Any>) -> Box<dyn Any> {
+            let ctxh = ctxh;
+            let boxdata = &mut *data;
+            match boxdata.downcast_mut::<$stateobj>() {
+                Some(s) => {
+                    update_inner(s, ctxh);
+                }
+                None => {
+                    panic!("FAILED DOWNCAST");
+                }
+            }
+
+            data
+        }
+
+        #[cfg(not(feature = "isbin"))]
+        #[no_mangle]
+        pub unsafe extern "C" fn mqhr_init() -> Box<dyn Any> {
+            let mynum = $stateobj::default();
+            let mybox: Box<dyn Any> = Box::new(mynum);
+            mybox
+        }
+
+        #[cfg(all(feature = "isbin", not(feature = "prod")))]
+        pub fn main() {
+            let opts = $mainbody;
+            opts.run();
+        }
+
+        #[cfg(all(feature = "isbin", feature = "prod"))]
+        pub fn main() {
+            let mut opts = $mainbody;
+            let macroquad_conf = opts.macroquad_conf.take().unwrap_or(::macroquad::window::Conf::default());
+            ::macroquad::Window::from_config(macroquad_conf, prod_main());
+        }
+
+        #[cfg(feature = "prod")]
+        async fn prod_main() {
+            let mut state = $stateobj::default();
+            loop {
+                let context = ::macroquad::get_context();
+                let ctxh = ::macroquad::ctx_helper::ContextHelper { context };
+                update_inner(&mut state, ctxh);
+                ::macroquad::window::next_frame().await;
+            }
+        }
+    }
+}
+
+
+#[macro_export]
+macro_rules! host_options {
+    () => {
+        // TODO: lib_.so is only on linux, figure out the windows/mac ones
+        mq_hotreload::HostOptions::from_macro(
+            format!("{}/target/debug/lib{}.so", env!("CARGO_MANIFEST_DIR"), env!("CARGO_CRATE_NAME")),
+            env!("CARGO_MANIFEST_DIR")
+        )
+    }
 }
 
 #[derive(Debug)]
@@ -76,6 +164,20 @@ impl Default for HostOptions {
 }
 
 impl HostOptions {
+    /// designed to be called from a macro that will fill all of the necessary
+    /// values in such as directory of cargo project, library name, etc...
+    pub fn from_macro(
+        shared_object: String,
+        cargo_project_path: &str,
+    ) -> HostOptions {
+        let watch_file = format!("{}/src/", cargo_project_path);
+        let mut opts = HostOptions::default();
+        opts.shared_object = shared_object.into();
+        opts.cargo_project_path = cargo_project_path.into();
+        opts.watch_files = vec![watch_file];
+        opts
+    }
+
     pub fn new<S: AsRef<str>>(shared_object: S) -> HostOptions {
         let mut opts = HostOptions::default();
         opts.shared_object = shared_object.as_ref().into();
