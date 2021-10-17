@@ -140,3 +140,92 @@ Finally, we included a `prod` feature to allow us to build for "production" whic
 ```sh
 cargo build --bin whatever --features "isbin prod"
 ```
+
+## Thread local storage
+
+According to the article at the top of this readme, one issue you will run into with live reloading is if your shared object uses thread local storage, you effectively won't be able to re-load the shared object. It will load once just fine, but then refuse to reload the newly built object. in other words, the shared object will stay in memory even after being modified and rebuilt. If you wan't to load the new shared object, you will have to close your program and run it again, which defeats the purpose of hot reloading.
+
+**However, there is a workaround. Keep in mind this is only necessary if your shared object uses thread local storage**.
+
+By builing your binary with the "leaky" flag, we add in code that stubs out the `__cxa_thread_atexit_impl` function, which will prevent your shared object from being cached, but the cost is that it will leak memory. **This only leaks memory on each hot reload, so for some use cases this isn't that bad**. And again, this is only for debugging. A production build won't use this, so it won't affect the final product.
+
+## When do I need to use "leaky"
+
+**Most programs won't need to use the leaky feature**. You will only need to enable it if you:
+
+- your program's shared object uses thread local storage
+- you want to be able to hot reload
+
+If both of the above are true, then you will want to use the leaky feature flag as follows:
+
+First, edit your Cargo.toml to add the leaky feature:
+
+```toml
+[features]
+default = []
+isbin = []
+prod = []
+leaky = []
+```
+
+Next, build your host executable again with:
+
+```sh
+cargo build --bin whatever --features "isbin leaky"
+```
+
+Just like before, you only need to build the host executable once.
+
+## One use case for "leaky"
+
+One use case I needed for this "leaky" feature is to be able to spawn threads in my shared object. Consider the following:
+
+```rs
+
+// ... code ommitted
+
+#[derive(Debug)]
+pub struct MyState {
+    pub tx: Sender<u32>,
+}
+
+impl Drop for MyState {
+    fn drop(&mut self) {
+        // this is called every time a library is unloaded
+        // if you don't provide a drop implementation, the thread will continue
+        // to run!
+        // this means every time you hotreload, you just add another thread that keeps
+        // running.
+        let _ = self.tx.send(2);
+    }
+}
+
+impl Default for MyState {
+    fn default() -> Self {
+        let (tx, rx) = channel();
+        thread::spawn(move || {
+            println!("im in a thread");
+            let sleep_dur = std::time::Duration::from_millis(500);
+            loop {
+                if let Ok(message) = rx.try_recv() {
+                    println!("BREAKING OUT");
+                    break;
+                }
+                thread::sleep(sleep_dur);
+            }
+        });
+        MyState {
+            tx,
+        }
+    }
+}
+
+// ... code ommitted
+```
+
+If we want to have a thread spawn when we create a new state, we also need a way to terminate
+this thread. Otherwise, every time the library is reloaded, we actually create a new thread, and the old thread keeps running!
+
+We provide now a Drop implementation which handles gracefully closing down the thread before the library is unloaded.
+
+This drop implementation is called by the host executable. **You only need to implement drop if there is something you need to manually close such as threads. Otherwise, You don't need to implement drop.**
