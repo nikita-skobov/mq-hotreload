@@ -39,6 +39,24 @@ macro_rules! mqhr_funcs {
             mybox
         }
 
+        #[cfg(not(feature = "isbin"))]
+        #[no_mangle]
+        pub unsafe extern "C" fn mqhr_close(mut data: Box<dyn Any>) {
+            let boxdata = &mut *data;
+            match boxdata.downcast_mut::<$stateobj>() {
+                Some(s) => {
+                    drop(s);
+                }
+                None => {
+                    panic!("FAILED DOWNCAST");
+                }
+            }
+        }
+
+        #[cfg(all(feature = "leaky", feature = "isbin", not(feature = "prod")))]
+        #[no_mangle]
+        pub unsafe extern "C" fn __cxa_thread_atexit_impl() {}
+
         #[cfg(all(feature = "isbin", not(feature = "prod")))]
         pub fn main() {
             let host = mq_hotreload::host_options!();
@@ -88,6 +106,24 @@ macro_rules! mqhr_funcs {
             let mybox: Box<dyn Any> = Box::new(mynum);
             mybox
         }
+
+        #[cfg(not(feature = "isbin"))]
+        #[no_mangle]
+        pub unsafe extern "C" fn mqhr_close(mut data: Box<dyn Any>) {
+            let boxdata = &mut *data;
+            match boxdata.downcast_mut::<$stateobj>() {
+                Some(s) => {
+                    drop(s);
+                }
+                None => {
+                    panic!("FAILED DOWNCAST");
+                }
+            }
+        }
+
+        #[cfg(all(feature = "leaky", feature = "isbin", not(feature = "prod")))]
+        #[no_mangle]
+        pub unsafe extern "C" fn __cxa_thread_atexit_impl() {}
 
         #[cfg(all(feature = "isbin", not(feature = "prod")))]
         pub fn main() {
@@ -303,11 +339,14 @@ async fn real_main(opts: HostOptions) {
         let mut lib = Library::new(&opts.shared_object).unwrap();
         let mut update_fn: Symbol<unsafe extern "C" fn(ctxh: ContextHelper, data: Box<dyn Any>) -> Box<dyn Any>> = lib.get(b"mqhr_update").unwrap();
         let mut init_fn: Symbol<unsafe extern "C" fn(data: Box<dyn Any>) -> Box<dyn Any>> = lib.get(b"mqhr_init").unwrap();
+        let mut close_fn: Symbol<unsafe extern "C" fn(data: Box<dyn Any>)> = lib.get(b"mqhr_close").unwrap();
         data = init_fn(data);
 
         loop {
             if watchman.should_update() {
                 println!("Change detected. Building new shared object");
+                close_fn(data);
+                data = Box::new(());
                 if !lib_built_successfully(&opts.cargo_project_path) {
                     broken_lib = true;
                     println!("FAILED TO BUILD LIBRARY");
@@ -324,6 +363,7 @@ async fn real_main(opts: HostOptions) {
                 lib = Library::new(&opts.shared_object).unwrap();
                 update_fn = lib.get(b"mqhr_update").unwrap();
                 init_fn = lib.get(b"mqhr_init").unwrap();
+                close_fn = lib.get(b"mqhr_close").unwrap();
                 data = init_fn(data);
                 println!("Successfully reloaded");
             }
